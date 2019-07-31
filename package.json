@@ -4,7 +4,16 @@
   "description": "A library for working with binary trees and other feedme jefferson metadata",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "mocha --reporter spec --require ts-node/register 'src/**/*.test.ts'",
+    "test-watch": "mocha --reporter spec --require ts-node/register --watch --watch-extensions ts 'src/**/*.test.ts'"
+  },
   "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.7",
+    "chai": "^4.2.0",
+    "mocha": "^6.2.0",
     "ts-node": "^8.3.0",
     "typescript": "^3.5.3"
   }
