@@ -6,8 +6,10 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
+    "lint": "tslint --project .",
+    "lint:fix": "tslint --project . --fix",
     "test": "mocha --reporter spec --require ts-node/register 'src/**/*.test.ts'",
-    "test-watch": "mocha --reporter spec --require ts-node/register --watch --watch-extensions ts 'src/**/*.test.ts'"
+    "test:watch": "mocha --reporter spec --require ts-node/register --watch --watch-extensions ts 'src/**/*.test.ts'"
   },
   "devDependencies": {
     "@types/chai": "^4.1.7",
@@ -15,6 +17,11 @@
     "chai": "^4.2.0",
     "mocha": "^6.2.0",
     "ts-node": "^8.3.0",
+    "tslint": "^5.18.0",
+    "tslint-config-prettier": "^1.17.0",
+    "tslint-consistent-codestyle": "^1.14.1",
+    "tslint-eslint-rules": "^5.4.0",
+    "tslint-react": "^3.6.0",
     "typescript": "^3.5.3"
   }
 }

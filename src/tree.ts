@@ -1,17 +1,18 @@
+import { TreeIndex } from "./types";
 
 export class IndexedTree {
-    private nodes: any;
+    private nodes: TreeIndex;
     // private minIndex: number;
     private maxIndex: number;
-    public constructor(tree: any) {
+    public constructor(tree: TreeIndex) {
         this.nodes=tree;
         this.maxIndex=Object.keys(tree).map(x => parseInt(x)).reduce((x,y) => x>y ? x : y);
 
     }
 
     /**
-     * Returns the value of the node at this index if it is a terminal node
-     * or undefined if it is a branch node or not a node in the tree.
+     * Returns the id for the food at this index if it is a food node
+     * or undefined if it is a branch or basket node.
      * 
      * @param {number} nodeIndex - the id of the node to get the value of.
      * @returns {string} - the value of the node if it is a terminal/leaf node.
@@ -74,15 +75,6 @@ export class IndexedTree {
         return "none";
         
     }
-    public expandBranch(branch: number, tree: any): IndexedTree {
-        // TODO: should we add in logic to check for integrity?
-        // this is a really a question in general for all new trees
-        const nodes = {...this.nodes, ...tree};
-        delete nodes[`${branch}`];
-
-        return new IndexedTree(nodes);
-    }
-
 
     public ancestorNodeId(nodeIndex: number): number {
         // tslint:disable-next-line: no-bitwise
