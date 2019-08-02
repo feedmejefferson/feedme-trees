@@ -1,4 +1,4 @@
-import { TreeIndex } from "./types";
+import { TreeExpansion, TreeIndex } from "./types";
 
 const maxDepth = 30;
 const maxIndex = 1 << (maxDepth + 1) -1;
@@ -30,4 +30,26 @@ const validateBranch = (t: TreeIndex, b: number): boolean => {
 export const validateTree = (t: TreeIndex): boolean => {
   // check if the root branch is valid
   return validateBranch(t,1);
+}
+
+/**
+ * Expands a tree index by replacing each of the expanded branches with 
+ * the new nodes specified in the tree expansion.
+ * 
+ * @param {TreeIndex} t the tree to expand
+ * @param {TreeExpansion} tx an associative list of branches with their 
+ * expansions
+ * @return {TreeIndex} an expanded tree index object
+ */
+export const expandTree = (t: TreeIndex, tx: TreeExpansion): TreeIndex => {
+  const expanded = {...t};
+  for(const bx in tx) {
+    if(!tx.hasOwnProperty(bx)) { continue }
+    delete expanded[bx];
+    for(const b in tx[bx]) {
+      if(!tx[bx].hasOwnProperty(b)) { continue }
+      expanded[b]=tx[bx][b];
+    }
+  }
+  return expanded;
 }
