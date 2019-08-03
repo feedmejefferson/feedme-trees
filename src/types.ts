@@ -1,11 +1,13 @@
-export interface TreeIndex {
-    [key:number]:string;
+export interface TreeLike<T> {
+    [key:number]:T;
 }
 
-export interface BranchExpansion {
-    [key:number]:string;
-}
+export interface TreeIndex extends TreeLike<string> {}
 
-export interface TreeExpansion {
-    [key:number]:BranchExpansion;
+export interface BranchExpansion extends TreeLike<string> {}
+
+export interface TreeExpansion extends TreeLike<BranchExpansion> {}
+
+export interface SplitTree extends TreeLike<TreeExpansion> {
+    core: TreeIndex;
 }

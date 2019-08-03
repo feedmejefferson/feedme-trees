@@ -1,4 +1,4 @@
-import { TreeExpansion, TreeIndex } from "./types";
+import { TreeExpansion, TreeIndex, TreeLike } from "./types";
 
 const MAX_DEPTH = 30;
 const MAX_INDEX = 1 << (MAX_DEPTH + 1) -1;
@@ -14,7 +14,7 @@ const MAX_INDEX = 1 << (MAX_DEPTH + 1) -1;
  * @returns {boolean} if the branch is valid
  */
 
-const validateBranch = (t: TreeIndex, b: number): boolean => {
+const validateBranch = (t: TreeLike<any>, b: number): boolean => {
   // pass if the branch is a node in the tree
   if (t[`${b}`]) {
     return true;
@@ -27,7 +27,7 @@ const validateBranch = (t: TreeIndex, b: number): boolean => {
   return(validateBranch(t,b*2) && validateBranch(t,b*2+1));
 }
 
-export const validateTree = (t: TreeIndex): boolean => {
+export const validateTree = (t: TreeLike<any>): boolean => {
   // check if the root branch is valid
   return validateBranch(t,1);
 }
@@ -54,14 +54,14 @@ export const expandTree = (t: TreeIndex, tx: TreeExpansion): TreeIndex => {
   return expanded;
 }
 
-export const maxDepth = (t: TreeIndex, b: number): number => {
+export const maxDepth = (t: TreeLike<any>, b: number): number => {
   if (t[`${b}`]) {
     return 0;
   }
   return(Math.max(maxDepth(t,b*2)+1, maxDepth(t,b*2+1)+1));
 }
 
-export const relativeAt = (t: TreeIndex, b: number, rb: number): number => {
+export const relativeAt = (t: TreeLike<any>, b: number, rb: number): number => {
   // we can't mod something with 0, so we have to use a minimum depth of 1
   // this will mean treating rb=0 the same as 2 and rb=1 the same as 3.
   const depth = Math.max(Math.floor(Math.log2(rb)), 1);
@@ -75,7 +75,7 @@ export const relativeAt = (t: TreeIndex, b: number, rb: number): number => {
   return null;
 }
 
-export const branchNodes = (t: TreeIndex, b: number): TreeIndex => {
+export function branchNodes<T>(t: TreeLike<T>, b: number): TreeLike<T> {
   if (t[`${b}`]) {
     const r = {};
     r[`${b}`]=t[`${b}`];
