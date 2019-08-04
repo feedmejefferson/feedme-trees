@@ -1,4 +1,4 @@
-import { TreeExpansion, TreeIndex, TreeLike } from "./types";
+import { SplitTree, TreeExpansion, TreeIndex, TreeLike } from "./types";
 
 const MAX_DEPTH = 30;
 const MAX_INDEX = 1 << (MAX_DEPTH + 1) -1;
@@ -16,7 +16,7 @@ const MAX_INDEX = 1 << (MAX_DEPTH + 1) -1;
 
 const validateBranch = (t: TreeLike<any>, b: number): boolean => {
   // pass if the branch is a node in the tree
-  if (t[`${b}`]) {
+  if (t[b]) {
     return true;
   }
   // fail if we've exceeded the max depth
@@ -55,7 +55,7 @@ export const expandTree = (t: TreeIndex, tx: TreeExpansion): TreeIndex => {
 }
 
 export const maxDepth = (t: TreeLike<any>, b: number): number => {
-  if (t[`${b}`]) {
+  if (t[b] || b>MAX_INDEX) {
     return 0;
   }
   return(Math.max(maxDepth(t,b*2)+1, maxDepth(t,b*2+1)+1));
@@ -67,7 +67,7 @@ export const relativeAt = (t: TreeLike<any>, b: number, rb: number): number => {
   const depth = Math.max(Math.floor(Math.log2(rb)), 1);
   let n = b;
   for(let i = 1; n<=MAX_INDEX && i<MAX_DEPTH; i++) {
-    if (t[`${n}`]) { return(n) }
+    if (t[n]) { return(n) }
     const shift = i % depth; 
     n *= 2;
     n = n + ((rb>>shift) & 1);
@@ -76,12 +76,94 @@ export const relativeAt = (t: TreeLike<any>, b: number, rb: number): number => {
 }
 
 export function branchNodes<T>(t: TreeLike<T>, b: number): TreeLike<T> {
-  if (t[`${b}`]) {
+  if (t[b]) {
     const r = {};
-    r[`${b}`]=t[`${b}`];
+    r[b]=t[b];
     return r;
   }
   const lb = branchNodes(t,b*2);
   const rb = branchNodes(t,b*2+1);
   return{...lb, ...rb};
+}
+
+const pruneBranch = (t: TreeIndex, b: number, d: number, f: number, s: number): SplitTree => {
+  /* 
+  run a depth first traversal until we reach a branch with max depth of f + d 
+  at which point we prune everything deeper than d and replace it with s(d)
+  (more or less)
+  */
+  if(maxDepth(t,b)<=(f)) { // TODO: huh? should this be or d or f?
+    return {core:branchNodes(t,b)}
+  }
+
+  let core = {};
+
+  const l = b*2;
+  const r = l+1;
+  const lb = pruneBranch(t, l, d, f, s);
+  const rb = pruneBranch(t, r, d, f, s);
+  const lc = lb.core;  // branch expansion for l
+  const rc = rb.core;  // branch expansion for r
+  const prunedBranch = {...lb, ...rb, core };
+
+  if(Math.floor(Math.log2(b))>d-2) {  // TODO: huh? should this be d or f?
+    const tx: TreeExpansion = {}
+    // Including minimum size check to account for empty core object
+    // until we fix max depth implementation
+    if(maxDepth(lc,l)>=f) {
+      const lr = lc[relativeAt(lc,l,s)];
+      tx[l]=lc;
+      core[l]=lr;
+    } else {
+      core = {...core, ...lc}
+    }
+    if(maxDepth(rc,r)>=f) {
+      const rr = rc[relativeAt(rc,r,s)];
+      tx[r]=rc;
+      core[r]=rr;
+    } else {
+      core = {...core, ...rc}
+    }
+    // TODO: I feel like there's a better way to handle this...
+    if(Object.keys(tx).length>0) {
+      prunedBranch[b]=tx;
+    }
+
+  } else {
+    core = {...lc,...rc}
+  }
+  prunedBranch.core=core;
+
+  return prunedBranch;
+
+}
+
+/**
+ * Splits a full tree index up into a smaller representation of the tree
+ * followed by a number of expansion baskets. The return value includes 
+ * the key `core` with the minimimized representation of the full index, as
+ * well as numeric keys indicating branches at which point the tree can 
+ * be expanded using @see #expandTree. Note, @see TreeExpansion objects
+ * should only be applied after the application of any ancestor node 
+ * expansions.
+ * 
+ * **Note**, this is an initial implementation that is subject to change.
+ * In particular, the relationship between depth and frequency and how
+ * they are specified has likely room for improvement. Expansion size
+ * probably makes more sense, but depth was easier to reason through for
+ * a first attempt.  
+ * 
+ * @param {TreeIndex} t the `tree` to be split 
+ * @param {number} d the minimum `depth` of collapsed (representative) branches
+ * in the returned core tree index.
+ * @param {number} f the `frequency` with which the tree should be expanded
+ * @param {number} s a number indicating `strategy` to use for selecting 
+ * representative nodes for collapsed branches. The number indicates the
+ * relative sub branch of the collapsed branch that should be searched to 
+ * find a represetative child node. @see #relativeAt
+ * 
+ * @return {SplitTree} a separated and expandable tree
+ */
+export const splitTree = (t: TreeIndex, d: number, f=1, s=0): SplitTree => {
+  return pruneBranch(t, 1, d, f, s);
 }
