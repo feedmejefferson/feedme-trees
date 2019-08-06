@@ -95,56 +95,33 @@ export function branchNodes<T>(t: TreeLike<T>, b: number): TreeLike<T> {
   return{...lb, ...rb};
 }
 
-const pruneBranch = (t: TreeIndex, b: number, d: number, f: number, s: number): SplitTree => {
-  /* 
-  run a depth first traversal until we reach a branch with max depth of f + d 
-  at which point we prune everything deeper than d and replace it with s(d)
-  (more or less)
-  */
-  if(maxDepth(t,b)<=(f)) { // TODO: huh? should this be or d or f?
-    return {core:branchNodes(t,b)}
-  }
-
-  let core = {};
-
-  const l = b*2;
-  const r = l+1;
-  const lb = pruneBranch(t, l, d, f, s);
-  const rb = pruneBranch(t, r, d, f, s);
-  const lc = lb.core;  // branch expansion for l
-  const rc = rb.core;  // branch expansion for r
-  const prunedBranch = {...lb, ...rb, core };
-
-  if(depth(b)>d-2) {  // TODO: huh? should this be d or f?
-    const tx: TreeExpansion = {}
-    // Including minimum size check to account for empty core object
-    // until we fix max depth implementation
-    if(maxDepth(lc,l)>=f) {
-      const lr = lc[relativeAt(lc,l,s)];
-      tx[l]=lc;
-      core[l]=lr;
+const buildBranch = (t: TreeIndex, b: number, d: number): TreeIndex => {
+  const start = b << d; // times 2^d
+  const end = start + (1 << (d)); // start plus 2^d
+  const core = {}
+  for(let i = start;i<end;i++) {
+    if(t[i]) { 
+      core[i]=t[i]
+    } else if(ancestor(t,i)) {
+      const a = ancestor(t,i);
+      core[a]=t[a]
     } else {
-      core = {...core, ...lc}
+      core[i] = t[relativeAt(t,i,0)]
     }
-    if(maxDepth(rc,r)>=f) {
-      const rr = rc[relativeAt(rc,r,s)];
-      tx[r]=rc;
-      core[r]=rr;
-    } else {
-      core = {...core, ...rc}
-    }
-    // TODO: I feel like there's a better way to handle this...
-    if(Object.keys(tx).length>0) {
-      prunedBranch[b]=tx;
-    }
-
-  } else {
-    core = {...lc,...rc}
   }
-  prunedBranch.core=core;
+  return core;
+}
 
-  return prunedBranch;
-
+const buildBasket = (t: TreeIndex, b: number, e: number, f: number): TreeExpansion => {
+  const start = b << e; // times 2^e
+  const end = start + (1 << e); // start plus 2^(e-1)
+  const basket = {}
+  for(let i = start;i<end;i++) {
+    if(ancestor(t,i)) { continue } // we don't need to expand this branch
+    const branch = buildBranch(t, i, f);
+    basket[i]=branch;
+  }
+  return basket;
 }
 
 /**
@@ -163,8 +140,8 @@ const pruneBranch = (t: TreeIndex, b: number, d: number, f: number, s: number): 
  * a first attempt.  
  * 
  * @param {TreeIndex} t the `tree` to be split 
- * @param {number} d the minimum `depth` of collapsed (representative) branches
- * in the returned core tree index.
+ * @param {number} e the `eagerness` or depth at which baskets should look 
+ * forward when expanding branches.
  * @param {number} f the `frequency` with which the tree should be expanded
  * @param {number} s a number indicating `strategy` to use for selecting 
  * representative nodes for collapsed branches. The number indicates the
@@ -173,6 +150,38 @@ const pruneBranch = (t: TreeIndex, b: number, d: number, f: number, s: number): 
  * 
  * @return {SplitTree} a separated and expandable tree
  */
-export const splitTree = (t: TreeIndex, d: number, f=1, s=0): SplitTree => {
-  return pruneBranch(t, 1, d, f, s);
+export const splitTree = (t: TreeIndex, e: number, f=1): SplitTree => {
+  //  return pruneBranch(t, 1, d, f, s);
+  
+  const core = buildBranch(t,1,e);
+  const split = {core};
+  const maxIndex = Object.keys(t)
+    .map(x=>parseInt(x))
+    .reduce((p,c)=>Math.max(p,c));
+  const maxBasket = maxIndex >> (e+f-1);  // we should never have to go deeper 
+  for(let b=1;b<maxBasket;b++) {
+    if(b & (b-1)) { // b is an exact power of 2
+      /* 
+      this is a bit convoluted, but we only want to build baskets where
+      the branch depth is a multiple of the frequency. We don't need to 
+      build and expansion for branch 1, that's already taken care of with 
+      the core basket. If the frequency is one, we basically have to build
+      expansions for every branch after 1 until the last one. For frequency
+      of two, we need to build them for branches 4-7, then skip 16-31, then
+      64-127... To do this, we're running a simple loop that increments 
+      the branch by one every cycle, but when it is an exact power of two,
+      we shift it by the frequency minus one (running through the last)
+      set of branches has already shifted it by one, so we only need to
+      shift it the rest of the way to get to the start of the next branch
+      depth cycle. If the frequency is 1, this does nothing.
+      */ 
+      b=b<<(f-1); 
+    } 
+    const basket = buildBasket(t, b, e, f)
+    if(Object.keys(basket).length>0) {
+      split[b]=basket;
+    }
+  }
+
+  return split;
 }

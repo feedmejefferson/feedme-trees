@@ -72,23 +72,23 @@ describe('Some branch node tests', () => {
 
 describe('Some tree splitting tests', () => {
     it('simple tree should be its own core', () => {
-        expect(splitTree(goodTree,2).core).deep.equals(goodTree)
+        expect(splitTree(goodTree,2,1).core).deep.equals(goodTree)
     })
     it('extreme pruning should split simple tree', () => {
-        const separated = splitTree(goodTree,1);
+        const separated = splitTree(goodTree,1,1);
         expect(separated.core).deep.equals({2:"008",3:"003"})
         expect(separated["1"]).deep.equals({2:{4:"008",5:"010"}})
     })
     it('should be able to split a bigger tree', () => {
-        const separated = splitTree(expandedTree, 2)
+        const separated = splitTree(expandedTree, 2,1)
         expect(separated.core).deep.equals(goodTree);
-        expect(separated["2"]).deep.equals(expansion);
+        expect(separated["1"]).deep.equals(expansion);
     })
     it('should be able to split a really big tree', () => {
-        const separated = splitTree(bigTree, 3, 2, 5)
+        const separated = splitTree(bigTree, 4, 2)
         expect(validateTree(separated.core)).is.true;
         expect(separated.core["23"]).equals("046");
-        expect(separated.core["24"]).equals("097");
+        expect(separated.core["24"]).equals("096");
         // console.log(JSON.stringify(separated))
         let rehydrated = separated.core;
         delete(separated.core);
