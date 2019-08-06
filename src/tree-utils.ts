@@ -61,14 +61,23 @@ export const maxDepth = (t: TreeLike<any>, b: number): number => {
   return(Math.max(maxDepth(t,b*2)+1, maxDepth(t,b*2+1)+1));
 }
 
+export const depth = (b: number): number => Math.floor(Math.log2(b));
+
+export const ancestor = (t: TreeLike<any>, b: number): number => {
+  while(b>0) {
+    if(t[b]) { return b }
+    b = b >> 1;
+  }
+}
+
 export const relativeAt = (t: TreeLike<any>, b: number, rb: number): number => {
   // we can't mod something with 0, so we have to use a minimum depth of 1
   // this will mean treating rb=0 the same as 2 and rb=1 the same as 3.
-  const depth = Math.max(Math.floor(Math.log2(rb)), 1);
+  const d = Math.max(depth(rb), 1);
   let n = b;
   for(let i = 1; n<=MAX_INDEX && i<MAX_DEPTH; i++) {
     if (t[n]) { return(n) }
-    const shift = i % depth; 
+    const shift = i % d; 
     n *= 2;
     n = n + ((rb>>shift) & 1);
   }
@@ -106,7 +115,7 @@ const pruneBranch = (t: TreeIndex, b: number, d: number, f: number, s: number): 
   const rc = rb.core;  // branch expansion for r
   const prunedBranch = {...lb, ...rb, core };
 
-  if(Math.floor(Math.log2(b))>d-2) {  // TODO: huh? should this be d or f?
+  if(depth(b)>d-2) {  // TODO: huh? should this be d or f?
     const tx: TreeExpansion = {}
     // Including minimum size check to account for empty core object
     // until we fix max depth implementation

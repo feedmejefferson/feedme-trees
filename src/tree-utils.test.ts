@@ -1,4 +1,4 @@
-import { branchNodes, expandTree, maxDepth, relativeAt, splitTree, validateTree } from "./tree-utils";
+import { ancestor, branchNodes, expandTree, maxDepth, relativeAt, splitTree, validateTree } from "./tree-utils";
 import { TreeExpansion, TreeIndex } from "./types";
 
 import * as chai from "chai";
@@ -40,6 +40,9 @@ describe('Some tree expansion tests', () => {
 
 describe('Some relative branch tests', () => {
     it('should be able to find relative nodes', () => {
+        expect(ancestor(expandedTree, 16)).equals(8);
+        expect(ancestor(expandedTree, 8)).equals(8);
+        expect(ancestor(expandedTree, 4)).is.not.ok;
         expect(relativeAt(expandedTree,2,0)).equals(8);
         expect(relativeAt(expandedTree,2,1)).equals(11);
         expect(relativeAt(expandedTree,2,2)).equals(8);
@@ -96,3 +99,4 @@ describe('Some tree splitting tests', () => {
         expect(rehydrated).deep.equals(bigTree);
     })
 })
+
