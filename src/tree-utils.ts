@@ -151,36 +151,36 @@ const buildBasket = (t: TreeIndex, b: number, e: number, f: number): TreeExpansi
  * @return {SplitTree} a separated and expandable tree
  */
 export const splitTree = (t: TreeIndex, e: number, f=1): SplitTree => {
-  //  return pruneBranch(t, 1, d, f, s);
-  
   const core = buildBranch(t,1,e);
   const split = {core};
   const maxIndex = Object.keys(t)
     .map(x=>parseInt(x))
     .reduce((p,c)=>Math.max(p,c));
   const maxBasket = maxIndex >> (e+f-1);  // we should never have to go deeper 
-  for(let b=1;b<maxBasket;b++) {
-    if(b & (b-1)) { // b is an exact power of 2
-      /* 
-      this is a bit convoluted, but we only want to build baskets where
-      the branch depth is a multiple of the frequency. We don't need to 
-      build and expansion for branch 1, that's already taken care of with 
-      the core basket. If the frequency is one, we basically have to build
-      expansions for every branch after 1 until the last one. For frequency
-      of two, we need to build them for branches 4-7, then skip 16-31, then
-      64-127... To do this, we're running a simple loop that increments 
-      the branch by one every cycle, but when it is an exact power of two,
-      we shift it by the frequency minus one (running through the last)
-      set of branches has already shifted it by one, so we only need to
-      shift it the rest of the way to get to the start of the next branch
-      depth cycle. If the frequency is 1, this does nothing.
-      */ 
-      b=b<<(f-1); 
-    } 
+  for(let b=1;b<=maxBasket;b++) {
     const basket = buildBasket(t, b, e, f)
     if(Object.keys(basket).length>0) {
       split[b]=basket;
     }
+    if(!(b & (b+1))) { // b+1 is an exact power of 2
+      /* 
+      this is a bit convoluted, but we only want to build baskets where
+      the branch depth is a multiple of the frequency. If the 
+      frequency is one, we basically have to build expansions
+      for every branch until the last one. For frequency of two, 
+      we need to build them for branches 1, then 4-7, then skip 16-31, then
+      64-127... To do this, we're running a simple loop that increments 
+      the branch by one every cycle, but when it reaches the end of that
+      cycle (depth) it will be one less than an exact power of two,
+      so we add one bringing it to that power of two, shift it by the 
+      frequency minus one (running through the last) set of branches has 
+      already shifted it by one, and subtract one (which will be added
+      back in at the next increment of the for loop). Note, if the frequency
+      is 1, this does nothing. 
+      */ 
+      b=((b+1)<<(f-1))-1; 
+    } 
+
   }
 
   return split;

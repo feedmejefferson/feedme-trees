@@ -85,18 +85,18 @@ describe('Some tree splitting tests', () => {
         expect(separated["1"]).deep.equals(expansion);
     })
     it('should be able to split a really big tree', () => {
-        const separated = splitTree(bigTree, 4, 2)
+        const separated = splitTree(bigTree, 3, 2)
         expect(validateTree(separated.core)).is.true;
-        expect(separated.core["23"]).equals("046");
-        expect(separated.core["24"]).equals("096");
-        // console.log(JSON.stringify(separated))
+        expect(separated.core["11"]).equals("022");
+        expect(separated.core["12"]).equals("096");
+//        console.log(JSON.stringify(separated))
         let rehydrated = separated.core;
         delete(separated.core);
-        expect(Object.keys(separated).length).equals(2)
         Object.keys(separated).forEach(k => {
             rehydrated = expandTree(rehydrated, separated[k])
         })
         expect(rehydrated).deep.equals(bigTree);
+        expect(Object.keys(separated).length).equals(3) // baskets 1, 5 and 6
     })
 })
 
