@@ -1,1 +1,2 @@
-export {IndexedTree} from './tree'
+export {IndexedTree} from './tree';
+export * from './tree-utils';
