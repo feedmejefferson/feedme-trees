@@ -1,7 +1,12 @@
 import { SplitTree, TreeExpansion, TreeIndex, TreeLike } from "./types";
 
-const MAX_DEPTH = 30;
-const MAX_INDEX = 1 << (MAX_DEPTH + 1) -1;
+export const MAX_DEPTH = 29;
+export const MAX_INDEX = (1 << (MAX_DEPTH + 1)) -1;
+const BISECT_LEFT = ~ (5 << 29)    // one then zero then 29 ones
+const BISECT_RIGHT = 3 << (MAX_DEPTH - 1); // two ones followed by 29 zeroes
+const RANDOM_OR_MASK = 1 << 30;
+const RANDOM_AND_MASK = (1 << 31) - 1;
+const MAX_POSITIVE = -1>>>1; // max positive signed integer -- 0 followed by 31 ones 
 
 /**
  * Checks if a branch is valid -- as in it has full coverage and no missing t
@@ -75,13 +80,30 @@ export const relativeAt = (t: TreeLike<any>, b: number, rb: number): number => {
   // this will mean treating rb=0 the same as 2 and rb=1 the same as 3.
   const d = Math.max(depth(rb), 1);
   let n = b;
-  for(let i = 1; n<=MAX_INDEX && i<MAX_DEPTH; i++) {
+  for(let i = 1; n<=MAX_INDEX && i<=MAX_DEPTH+1; i++) {
     if (t[n]) { return(n) }
     const shift = i % d; 
     n *= 2;
-    n = n + ((rb>>shift) & 1);
+    n = n + ((rb>>((d-shift)%d)) & 1);
   }
   return null;
+}
+
+export const bisectRight = (t: TreeLike<any>, b: number): number => {
+  return relativeAt(t,b,BISECT_RIGHT);
+}
+
+export const bisectLeft = (t: TreeLike<any>, b: number): number => {
+  return relativeAt(t,b,BISECT_LEFT);
+}
+
+export const seededRandom = (t: TreeLike<any>, b: number, s: number) => {
+  const masked = s & RANDOM_AND_MASK | RANDOM_OR_MASK;
+  return relativeAt(t,b,masked);
+}
+
+export const getRandomSeed = (): number => {
+  return Math.random() * Number.MAX_SAFE_INTEGER & MAX_POSITIVE; // must be positive -- 0 followed by random
 }
 
 export function branchNodes<T>(t: TreeLike<T>, b: number): TreeLike<T> {
