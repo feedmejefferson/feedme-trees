@@ -2,8 +2,8 @@ import { SplitTree, TreeExpansion, TreeIndex, TreeLike } from "./types";
 
 export const MAX_DEPTH = 29;
 export const MAX_INDEX = (1 << (MAX_DEPTH + 1)) -1;
-const BISECT_LEFT = ~ (5 << 29)    // one then zero then 29 ones
-const BISECT_RIGHT = 3 << (MAX_DEPTH - 1); // two ones followed by 29 zeroes
+export const BISECT_LEFT = ~ (5 << 29)    // one then zero then 29 ones
+export const BISECT_RIGHT = 3 << (MAX_DEPTH - 1); // two ones followed by 29 zeroes
 const RANDOM_OR_MASK = 1 << 30;
 const RANDOM_AND_MASK = (1 << 31) - 1;
 const MAX_POSITIVE = -1>>>1; // max positive signed integer -- 0 followed by 31 ones 
@@ -103,7 +103,7 @@ export const seededRandom = (t: TreeLike<any>, b: number, s: number) => {
 }
 
 export const getRandomSeed = (): number => {
-  return Math.random() * Number.MAX_SAFE_INTEGER & MAX_POSITIVE; // must be positive -- 0 followed by random
+  return Math.random() * Number.MAX_SAFE_INTEGER & RANDOM_AND_MASK | RANDOM_OR_MASK;
 }
 
 export function branchNodes<T>(t: TreeLike<T>, b: number): TreeLike<T> {

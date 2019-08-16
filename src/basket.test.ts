@@ -14,9 +14,11 @@ const simpleBasket = {
   attributions: {
     "02": {...baseAttr, id: "02"},
     "03": {...baseAttr, id: "03"}
-  }
+  },
+  baskets: {2: "2"}
 };
 const simpleExpansion = { 
+  id: "2",
   tree: {2:{4: "04", 5: "05"}}, 
   attributions: {
     "04": {...baseAttr, id: "04"},
@@ -37,7 +39,9 @@ describe('Some simple basket tests', () => {
   })
   it('should be able to expand basket', () => {
     const b = new Basket(simpleBasket)
+    expect(b.hasExpansion(2)).is.ok;
     const c = b.withExpansion(simpleExpansion)
+    expect(c.hasExpansion(2)).is.not.ok;
     expect(c.getAttributions("04").id).equals("04");
     expect(c.relativeAt(1,2)).equals("04");
     expect(c.relativeAt(2,3)).equals("05");

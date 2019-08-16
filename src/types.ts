@@ -23,10 +23,12 @@ export interface Attribution  {
 
 export interface CoreBasket {
     tree: TreeIndex;
+    baskets: TreeIndex;
     attributions: {[key:string]: Attribution};
 }
 
 export interface BasketExpansion {
+    id: string;
     tree: TreeExpansion;
     attributions: {[key:string]: Attribution};
 }
