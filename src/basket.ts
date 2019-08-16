@@ -36,7 +36,12 @@ export class Basket {
     return !!this.tree[branch];
   }
   public hasExpansion(branch: number): string {
-    return this.remaining[branch];
+    let expansion=null;
+    while(branch>0) {
+      if(this.remaining[branch]) { expansion=this.remaining[branch] }
+      branch = branch >> 1;
+    }
+    return expansion;
   }
 
 }
