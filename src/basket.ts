@@ -9,12 +9,10 @@ export class Basket {
   private tree: TreeIndex; 
   private attributions: {[key:string]:Attribution};
   private remaining: TreeIndex;
-  private maxIndex: number;
   public constructor(core: CoreBasket) {
     this.tree=core.tree;
     this.attributions=core.attributions;
     this.remaining=core.baskets;
-    this.maxIndex=Object.keys(this.tree).map(x => parseInt(x)).reduce((x,y) => x>y ? x : y);
   }
   public serialize(): string {
     return JSON.stringify({tree: this.tree, attributions: this.attributions, baskets: this.remaining})
