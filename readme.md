@@ -4,18 +4,11 @@ This library is intended to support most of the model structures for feed me jef
 
 ## Installation and Usage
 
-For now we aren't publshing this to any centralized registries.
+We aren't publishing to the standard npm repository, so you'll first have to add the `@feedmejefferson` github scope to your `.npmrc` file.
 
-```
-npm install
-npx tsc
-```
+> While you can probably add this to the `.npmrc` file in your home directory, it's better to add it at the project level for any projects that you intend to share so others can easily run `npm install` without having to add the scope to their home directory.
 
-Then from other projects, install it as a directory reference.
+Now add it like you would any other `npm` dependency:
 
-```
-cd ../other-project
-npm install -S ../feedme-trees
-```
-
-I'll work provide better guidance as I get a little more experienced with this...
+    npm install --save @feedmejefferson/feedme-trees
+ 
