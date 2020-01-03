@@ -1,4 +1,4 @@
-import { SplitTree, TreeExpansion, TreeIndex, TreeLike } from "./types";
+import { Centroid, LeafNode, Point, SplitTree, TreeExpansion, TreeIndex, TreeLike } from "./types";
 
 export const MAX_DEPTH = 29;
 export const MAX_INDEX = (1 << (MAX_DEPTH + 1)) -1;
@@ -206,4 +206,41 @@ export const splitTree = (t: TreeIndex, e: number, f=1): SplitTree => {
   }
 
   return split;
+}
+
+export const EMPTY_CENTROID = { w: 0, v: [] }
+
+export const asCentroid = (p: Point): Centroid => ({ w: 1, v: [...p.v] })
+export const combine = (a: Centroid, b: Centroid): Centroid => {
+  if(a.w===0) { 
+      return {w: b.w, v: [...b.v]}
+   }
+  const w = a.w + b.w
+  return {
+      w,
+      v: a.v.map((avi,i)=>((avi * a.w + b.v[i] * b.w) / w))
+  }
+}
+
+export const distance = (a: Point, b: Point): number => {
+  const sumOfSquares = a.v.map((avi,i)=>(Math.pow(avi - b.v[i],2))).reduce((acc,n)=>(acc+n),0)
+  return Math.sqrt(sumOfSquares);
+}
+
+export const calculateCentroids = (t: TreeLike<Centroid|LeafNode>, b: number): Centroid => {
+  // if the branch is a leafnode, return it as a centroid
+  if (t[b]) {
+    return ('w' in t[b]) ? t[b] as Centroid : asCentroid(t[b]);
+  }
+  // fail if we've exceeded the max depth -- return an empty centroid
+  if(b>MAX_INDEX) {
+    return EMPTY_CENTROID;
+  }
+  // calculate both of the sub branches recursively
+  const left = calculateCentroids(t,b*2);
+  const right = calculateCentroids(t,b*2+1);
+  if(left===EMPTY_CENTROID || right===EMPTY_CENTROID) {return EMPTY_CENTROID}
+  const centroid = combine(left,right);
+  t[b] = centroid;
+  return centroid;
 }

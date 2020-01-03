@@ -32,3 +32,13 @@ export interface BasketExpansion {
     tree: TreeExpansion;
     attributions: {[key:string]: Attribution};
 }
+
+export interface Point {
+    v: number[];  // the points location (a vector)
+}
+export interface LeafNode extends Point {
+    id: string;
+}
+export interface Centroid extends Point {
+    w: number;  // the centroids weight (or node count)
+}
