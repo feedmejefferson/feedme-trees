@@ -1,4 +1,4 @@
-import { calculateCentroids, distance } from "./tree-utils";
+import { calculateCentroids, distance, nn as tnn, nearestBranch } from "./tree-utils";
 import { Centroid, LeafNode, Point, TreeLike } from "./types";
 
 
@@ -92,19 +92,6 @@ export class BallTree {
         } 
         return 0;
     }
-
-    public nn(p: Point): LeafNode { 
-        let nid = 1;
-        while(!('id' in this.nodes[nid])) {
-            nid=this.nearestChildNodeId(nid, p)
-        }
-        return this.nodes[nid] as LeafNode;
-    }
-    private nearestChildNodeId(id: number, point: Point): number {
-        const aid = id*2;
-        const bid = id*2+1;
-        const adist = distance(point,this.nodes[aid]);
-        const bdist = distance(point,this.nodes[bid]);
-        return adist<bdist ? aid : bid;
-    }
+    public nn = (p: Point) => tnn(this.nodes, 1, p)
+    public nb = (p: Point, depth: number) => nearestBranch(this.nodes,1,p,depth)
 }

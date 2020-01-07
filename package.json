@@ -5,7 +5,9 @@
   "description": "A library for working with binary trees and other feedme jefferson metadata",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["/dist"],
+  "files": [
+    "/dist"
+  ],
   "prepublish": "tsc",
   "scripts": {
     "build": "tsc",
@@ -26,5 +28,8 @@
     "tslint-eslint-rules": "^5.4.0",
     "tslint-react": "^3.6.0",
     "typescript": "^3.5.3"
+  },
+  "dependencies": {
+    "@types/node": "^13.1.4"
   }
 }

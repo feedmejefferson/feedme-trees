@@ -41,4 +41,5 @@ export interface LeafNode extends Point {
 }
 export interface Centroid extends Point {
     w: number;  // the centroids weight (or node count)
+    r?: number;
 }
