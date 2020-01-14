@@ -1,4 +1,4 @@
-import { Centroid, LeafNode, Point, SplitTree, TreeExpansion, TreeIndex, TreeLike } from "./types";
+import { Ball, Centroid, LeafNode, Point, SplitTree, TreeExpansion, TreeIndex, TreeLike } from "./types";
 
 export const MAX_DEPTH = 29;
 export const MAX_INDEX = (1 << (MAX_DEPTH + 1)) -1;
@@ -208,19 +208,69 @@ export const splitTree = (t: TreeIndex, e: number, f=1): SplitTree => {
   return split;
 }
 
-export const EMPTY_CENTROID = { w: 0, v: [] }
+export const NULL_BALL = { radius: 0, center: [], centroid: [], weight: 0}
 
-export const asCentroid = (p: LeafNode): Centroid => ({ w: 1, v: [...p.v] })
-export const combine = (a: Centroid, b: Centroid): Centroid => {
-  if(a.w===0) { 
-    return {w: b.w, v: [...b.v]}
+export const asBall = (p: Point): Ball => (
+  { center: p, radius: 0, centroid: p, weight: 1 }
+)
+
+export const times = (p: Point, n: number): Point => p.map(px=>n*px) 
+export const plus = (p1: Point, p2: Point): Point => p1.map((p1x,i)=>p1x+p2[i])
+export const dot = (p1: Point, p2: Point): number => p1.map((p1x,i)=>p1x*p2[i]).reduce((acc,x)=>acc+x)
+// euclidean L2 distance
+export const distance = (a: Point, b: Point): number => {
+//  const sumOfSquares = a.map((avi,i)=>(Math.pow(avi - b[i],2))).reduce((acc,n)=>(acc+n),0)
+//  return Math.sqrt(sumOfSquares);
+  const h = difference(a,b)
+  return Math.sqrt(dot(h,h))
+}
+
+// vector subtraction
+export const difference = (a: Point, b: Point): Point => a.map((ai,i)=>ai - b[i])
+
+// average of two vectors (with optional weights for weighted average)
+export const mean = (p1: Point, p2: Point, w1?: number, w2?: number) => {
+  if(w1 && w2) {
+    return p1.map((c,i)=>((c * w1 + p2[i] * w2) / (w1+w2)));
   }
-  const w = a.w + b.w
-  const v = a.v.map((avi,i)=>((avi * a.w + b.v[i] * b.w) / w));
-  const ar = a.r ? a.r : 0;
-  const br = b.r ? b.r : 0;
-  const r = Math.sqrt(Math.pow(distance(a,b)/2,2) + Math.pow((ar+br)/2,2))
-  return { w, v, r }
+  return p1.map((c,i)=>(c + p2[i])/2)
+}
+
+export const containerBall = (b1: Ball, b2: Ball): Ball => {
+  const weight = b1.weight + b2.weight;
+  const centroid = b1.centroid.map((c,i)=>((c * b1.weight + b2.centroid[i] * b2.weight) / weight));
+  /*
+  This is just some basic geometry. The new center is the midpoint of the diameter
+  formed by the line passing through each of the two contained balls centers
+  and extending each balls radius outward to the new balls outer wall -- thus
+  the diameter is the distance between the two centers plus each of the respective
+  radii and the bounding balls radius is half of that. If B is the line between 
+  the two contained ball centers, then b1w/b2w is the ratio of the distance between
+  the new center and one of the old centers to the distance from the new center to
+  the other old center. Its easier to calculate these scalar values once and
+  use them to find the new center as a weighted average of the old centers than
+  to calculate the new end points and average them. 
+  */
+  const A = b1.radius;
+  const B = distance(b1.center,b2.center);
+  const C = b2.radius;
+  const radius = (A + B + C)/2;
+  /*
+  If one of the balls is completely contained by the other ball, we should just
+  return the center and radius of the larger ball. This should also account for
+  divide by zero errors caused by overlapping centers -- because one of the balls
+  completely contains the other (or is the same as)
+  */
+  const minRadius = A>C ? A : C;
+  if(minRadius>=radius) {
+    return { weight, centroid, radius: minRadius, center: A>C ? b1.center : b2.center }
+  }
+
+  const b1w = radius - A;
+  const b2w = radius - C;
+  const center = mean(b1.center, b2.center, b2w, b1w);
+  // b1.center.map((c,i)=>((c * b2w + b2.center[i] * b1w) / B));
+  return { weight, centroid, radius, center }
 }
 
 /* 
@@ -240,16 +290,35 @@ gives us a value that is on average normalized to the size of a single food offs
 halving this?) and then adding in the current centroid removes the bias that pulling from a distribution 
 surrounding that centroid added in. 
 */
-
-export const difference = (a: Point, b: Point, c: Point): Point => ({v : a.v.map((avi,i)=>(avi - b.v[i])/3 + c.v[i])})
-export const accumulate = (a: {v: number[], path: number[], w: number}, p: Point, b: number) => {
-  const cent = combine({v: a.v, w: 2}, {v: p.v, w: 1})  // average the new location with the decayed old location
-  const w = a.w + 1;
-  const v = cent.v;
-  const path = [...a.path,b]
-  return { w, v, path }
+export const accumulator = (start: Point) => {
+  let bestGuess = start;
+  const likes: Point[] = [];
+  const dislikes: Point[] = [];
+  const differences: Point[] = [];
+  return {
+    accumulate: (prefer: Point, decline: Point, pDrawnFrom: Ball, dDrawnFrom: Ball) => {
+      // const unnormalized = difference(prefer,decline)
+      // const length = dot(unnormalized,unnormalized)
+      // const unit = length>0 ? times(unnormalized, 1/length) : unnormalized; 
+      // const weighted = times(unit,pDrawnFrom.radius)
+      // bestGuess = mean(bestGuess,weighted)
+//      bestGuess = plus(bestGuess,difference(prefer,decline))
+      bestGuess=mean(bestGuess,difference(times(prefer,2),decline),9,1);
+//      bestGuess = plus(pDrawnFrom.centroid,weighted)
+      likes.push(prefer);
+      dislikes.push(decline);
+      differences.push(mean(pDrawnFrom.centroid, dDrawnFrom.centroid));
+      // bestGuess = mean(bestGuess, x, 1, 2)  // average the new location with the decayed old location
+    },
+    convergence: () => bestGuess,
+    history: () => likes
+  }
 }
-// export const difference = (a: Point, b: Point): Point => ({v : a.v.map((avi,i)=>avi - b.v[i])})
+export const accumulate = (a: {v: number[], path: number[], w: number}, p: Point, b: number) => {
+}
+
+// old
+//
 // export const accumulate = (a: {v: number[], path: number[], w: number}, p: Point, b: number) => {
 //   const w = a.w + 1;
 //   const sumOfSquares = p.v.map((x)=>(Math.pow(x,2))).reduce((acc,n)=>(acc+n),0)
@@ -262,63 +331,128 @@ export const accumulate = (a: {v: number[], path: number[], w: number}, p: Point
 //   return { w, v, path }
 // }
 
-export const distance = (a: Point, b: Point): number => {
-  const sumOfSquares = a.v.map((avi,i)=>(Math.pow(avi - b.v[i],2))).reduce((acc,n)=>(acc+n),0)
-  return Math.sqrt(sumOfSquares);
-}
 
-const nearestChildBranch = (t: TreeLike<Centroid|LeafNode>, b: number, p: Point): number => {
+// const nearestChildBranch = (t: TreeLike<Centroid|LeafNode>, b: number, p: Point): number => {
+//   const lb = b*2;
+//   const rb = lb+1;
+//   const lp = t[lb]
+//   const rp = t[rb]
+//   const ldist = distance(p,lp);
+//   const rdist = distance(p,rp);
+// //  console.log(lb, rb, ldist, rdist, distance(lp,rp), (lp as Centroid).r, (rp as Centroid).r, (lp as Centroid).w, (rp as Centroid).w)
+//   return ldist<rdist ? lb : rb;
+// }
+// export const nearestBranch = (t: TreeLike<Centroid|LeafNode>, b: number, p: Point, d: number) => { 
+//   let nid = b;
+//   let count = 0;
+//   while(count < d && !('id' in t[nid])) {
+//       nid=nearestChildBranch(t, nid, p)
+//       count++
+//   }
+//   return nid;
+// }
+
+const ballsIntersect = (b1: Ball, b2: Ball): boolean => {
+  return distance(b1.center,b2.center) <= b1.radius + b2.radius
+} 
+export const intersectingBranches = (t: TreeLike<Ball>, branch: number, ball: Ball): number[] => {
+  if(!t[branch] || !ballsIntersect(t[branch],ball)) { return [] }
+  const lb = branch * 2;
+  const rb = lb + 1;
+  const branches = intersectingBranches(t,lb,ball).concat(intersectingBranches(t,rb,ball))
+  return branches.length > 0 ? branches : [branch]
+}
+interface Candidate {
+  branch: number;
+  distance: number;
+}
+type PriorityQueue = Candidate[];
+const compareCandidates = (a: Candidate, b: Candidate) => a.distance - b.distance;
+const knnr = (t: TreeLike<Ball>, b: number, p: Point, k: number, q: PriorityQueue): PriorityQueue => { 
+
+  const thisBall = t[b]
+  const dist = distance(p,thisBall.center) - thisBall.radius; // negative if p is inside balls wall
+
+  // if the priority queue is full and the point is outside of this ball and
+  // the furthest member (the last one) in the queue is closer than the edge 
+  // of this ball, then don't search this ball and just return the queue as is
+  if(q.length >= k && q[k-1].distance < dist) { return q }
+
+  // if this is a leafnode, add it to the queue, sort the queue, splice and return it
+  if(thisBall.weight === 1) {
+    q.push({ distance: dist, branch: b })
+    q.sort(compareCandidates)
+    q.splice(k)
+    return q;
+  }
+  
+  // search the child branches recursively always starting with the closer one
   const lb = b*2;
   const rb = lb+1;
-  const lp = t[lb]
-  const rp = t[rb]
-  const ldist = distance(p,lp);
-  const rdist = distance(p,rp);
-//  console.log(lb, rb, ldist, rdist, distance(lp,rp), (lp as Centroid).r, (rp as Centroid).r, (lp as Centroid).w, (rp as Centroid).w)
-  return ldist<rdist ? lb : rb;
+  const closer = distance(p,t[lb].center) < distance(p,t[rb].center) ? lb : rb;
+  const farther = closer === lb ? rb : lb;
+  knnr(t, closer, p, k, q)
+  knnr(t, farther, p, k, q)
+  return q;
 }
-export const nearestBranch = (t: TreeLike<Centroid|LeafNode>, b: number, p: Point, d: number) => { 
-  let nid = b;
-  let count = 0;
-  while(count < d && !('id' in t[nid])) {
-      nid=nearestChildBranch(t, nid, p)
-      count++
+export const knn = (t: TreeLike<Ball>, b: number, p: Point, k: number): number[] => {
+  return knnr(t, b, p, k, []).map(c=>c.branch);
+}
+
+/*
+find the K largest balls with weight less than 'm' but more than m/2
+in order of distance to centroid (from point p)
+*/
+const kncr = (t: TreeLike<Ball>, b: number, p: Point, k: number, m: number, q: PriorityQueue): PriorityQueue => { 
+
+  const thisBall = t[b]
+  const dist = distance(p,thisBall.center) - thisBall.radius; // negative if p is inside balls wall
+
+  // if the priority queue is full and the point is outside of this ball and
+  // the furthest member (the last one) in the queue is closer than the edge 
+  // of this ball, then don't search this ball and just return the queue as is
+  if(q.length >= k && q[k-1].distance < dist) { return q }
+
+  // if this branch is too small, skip it
+  if(thisBall.weight < m/2) { return q }
+
+  // if this branch is small enough (but not too small) add it to the queue, 
+  // sort the queue, splice and return it
+  if(thisBall.weight <= m) {
+    q.push({ distance: distance(p,thisBall.centroid), branch: b })
+    q.sort(compareCandidates)
+    q.splice(k)
+    return q;
   }
-  return nid;
+    
+  // search the child branches recursively always starting with the closer one
+  const lb = b*2;
+  const rb = lb+1;
+  const closer = distance(p,t[lb].center) < distance(p,t[rb].center) ? lb : rb;
+  const farther = closer === lb ? rb : lb;
+  kncr(t, closer, p, k, m, q)
+  kncr(t, farther, p, k, m, q)
+  return q;
 }
-
-export const nn = (t: TreeLike<Centroid|LeafNode>, b: number, p: Point): LeafNode => { 
-  let nid = b;
-  while(!('id' in t[nid])) {
-      nid=nearestChildBranch(t, nid, p)
-  }
-  return t[nid] as LeafNode;
-}
+export const knc = (t: TreeLike<Ball>, b: number, p: Point, k: number, m: number): number[] => kncr(t, b, p, k, m, []).map(c=>c.branch);
 
 
-export const calculateCentroids = (t: TreeLike<Centroid|LeafNode>, b: number): Centroid => {
-  // if the branch is a leafnode, return it as a centroid
+export const calculateCentroids = (t: TreeLike<Ball>, b: number): Ball => {
+  // if the branch exists, return it (it's either a leaf node or it's already built)
   if (t[b]) {
-    return ('w' in t[b]) ? t[b] as Centroid : asCentroid(t[b] as LeafNode);
+    return t[b];
   }
   // fail if we've exceeded the max depth -- return an empty centroid
   if(b>MAX_INDEX) {
-    return EMPTY_CENTROID;
+    return NULL_BALL;
   }
   // calculate both of the sub branches recursively
   const lb = b*2;
   const rb = lb+1;
   const left = calculateCentroids(t,lb);
   const right = calculateCentroids(t,rb);
-  if(left===EMPTY_CENTROID || right===EMPTY_CENTROID) {return EMPTY_CENTROID}
-  const centroid = combine(left,right);
-  // if(!centroid.m) {
-  //   const lm = nn(t, lb, centroid)
-  //   const rm = nn(t, rb, centroid)
-  //   const ldist = distance(lm,centroid);
-  //   const rdist = distance(rm,centroid);
-  //   centroid.m = ldist<rdist ? lm : rm;  
-  // }
-  t[b] = centroid;
-  return centroid;
+  if(left===NULL_BALL || right===NULL_BALL) {return NULL_BALL}
+  const ball = containerBall(left,right);
+  t[b] = ball;
+  return ball;
 }

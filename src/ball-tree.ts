@@ -1,12 +1,12 @@
-import { calculateCentroids, distance, nn as tnn, nearestBranch } from "./tree-utils";
-import { Centroid, LeafNode, Point, TreeLike } from "./types";
+import { calculateCentroids, distance, knn, knc } from "./tree-utils";
+import { Ball, Point, TreeLike, LeafNode } from "./types";
 
 
 export class BallTree {
-    private nodes: TreeLike<Centroid|LeafNode>;
+    private nodes: TreeLike<Ball>;
     // private minIndex: number;
     private maxIndex: number;
-    public constructor(tree: TreeLike<Centroid|LeafNode>) {
+    public constructor(tree: TreeLike<Ball>) {
         this.nodes=tree;
         this.maxIndex=Object.keys(tree).map(x => parseInt(x)).reduce((x,y) => x>y ? x : y);
         calculateCentroids(this.nodes,1);
@@ -20,7 +20,7 @@ export class BallTree {
      * @param {number} nodeIndex - the id of the node to get the value of.
      * @returns {string} - the value of the node if it is a terminal/leaf node.
      */
-    public get(nodeIndex: number): Partial<Centroid & LeafNode> {
+    public get(nodeIndex: number): Ball {
         return this.nodes[`${nodeIndex}`];
     }
     
@@ -31,10 +31,10 @@ export class BallTree {
      * @param {number} nodeIndex - the node/branch to traverse.
      * @returns {string} - the value of this branches first terminal node.
      */
-    public getFirst(nodeIndex: number): LeafNode {
+    public getFirst(nodeIndex: number): Ball {
         for(let i = nodeIndex;i<=this.maxIndex;i*=2) {
-            const v = this.get(i);
-            if(v&&v.id) { return v as LeafNode; }
+            const ball = this.get(i);
+            if(ball.weight===1) { return ball }
         }         
     }
 
@@ -44,54 +44,52 @@ export class BallTree {
      * @param {number} nodeIndex - the node/branch to bisect.
      * @returns {string} - the value of this branches central most terminal node.
      */
-    public getBisect(nodeIndex: number): LeafNode {
-        const v = this.get(nodeIndex);
-        return (v && v.id) ? v as LeafNode : this.getFirst(nodeIndex*2+1);
+    public getBisect(nodeIndex: number): Ball {
+        const ball = this.get(nodeIndex);
+        return (ball.weight===1) ? ball : this.getFirst(nodeIndex*2+1);
     }
 
     /**
-     * Traverse the branch using a random seed to find a terminal node. 
+     * Return a random leaf node from the branch specified. The random node
+     * returned will be uniformly drawn from the leaf nodes of this branch.
      * 
-     * @param {number} nodeIndex - the node/branch to bisect.
-     * @param {number} seed - a random number between 0 and 1.
-     * @returns {string} - the value of this branches central most terminal node.
+     * @param {number} nodeIndex - the node/branch to get a random leaf node from.
+     * @returns {string} - a random terminal node.
      */
-    public getRandom(nodeIndex: number, seed: number): LeafNode {
-        const m = -1>>>1; // max positive signed integer -- 0 followed by 31 ones
-        const s = seed * Number.MAX_SAFE_INTEGER & m; // must be positive -- 0 followed by random
-        let b = nodeIndex;
-        let i = b;
-        // max shift of 31 starts us off with 0 value, each decrement of 1 
-        // doubles the previous value and randomly adds 0 or 1 for a consistent
-        // traversal of the tree. This is important because we want pairings
-        // that represent the same relative traversals from opposing branches.
-        // It's possible that one branch will have to traverse deeper than the
-        // other branch, so it's important that both sides consistently traverse
-        // each of the branches when using the same seed.
-        for(let shift = 30; shift>0 && i<=this.maxIndex; shift--) {
-            const v = this.get(i)
-            if(v&&v.id) { return v as LeafNode; }
-            b *= 2;
-            i = b + (s>>shift);
+    public getRandom(nodeIndex: number): LeafNode {
+        let branch = nodeIndex;
+        let weight = this.get(branch).weight;
+        while(weight>1) {
+            branch=branch*2;
+            const lb = this.get(branch);
+            if(Math.random()>lb.weight/weight) { 
+                branch+=1;
+            }
+            weight = this.get(branch).weight;
         }
+        return this.get(branch) as LeafNode
         
     }
 
     public ancestorNodeId(nodeIndex: number): number {
         // tslint:disable-next-line: no-bitwise
         for(let i = nodeIndex;i>1;i>>=1) {
-            const v = this.get(i)
-            if(v&&v.id) { return i; }
+            const ball = this.get(i)
+            if(ball&&ball.weight===1) { return i; }
         } 
         return 0;
     }
     public firstChildNodeId(nodeIndex: number): number {
         for(let i = nodeIndex;i<=this.maxIndex;i*=2) {
-            const v = this.get(i)
-            if(v&&v.id) { return i; }
+            const ball = this.get(i)
+            if(ball.weight===1) { return i; }
         } 
         return 0;
     }
-    public nn = (p: Point) => tnn(this.nodes, 1, p)
-    public nb = (p: Point, depth: number) => nearestBranch(this.nodes,1,p,depth)
+    public nn = (p: Point): LeafNode => {
+        return this.nodes[knn(this.nodes, 1, p, 1)[0]] as LeafNode;
+    }
+    public nc = (p: Point, m: number): number => {
+        return knc(this.nodes, 1, p, 1, m)[0];
+    }
 }
