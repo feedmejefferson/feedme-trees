@@ -47,3 +47,7 @@ export interface Ball {
     centroid: Point;
     weight: number;
 }
+export interface Hyperplane {
+    normal: Point;
+    offset: number;
+}

@@ -1,4 +1,4 @@
-import { Ball, Centroid, LeafNode, Point, SplitTree, TreeExpansion, TreeIndex, TreeLike } from "./types";
+import { Ball, Centroid, Hyperplane, LeafNode, Point, SplitTree, TreeExpansion, TreeIndex, TreeLike } from "./types";
 
 export const MAX_DEPTH = 29;
 export const MAX_INDEX = (1 << (MAX_DEPTH + 1)) -1;
@@ -290,31 +290,64 @@ gives us a value that is on average normalized to the size of a single food offs
 halving this?) and then adding in the current centroid removes the bias that pulling from a distribution 
 surrounding that centroid added in. 
 */
-export const accumulator = (start: Point) => {
-  let bestGuess = start;
+// export const accumulator = (start: Point) => {
+//   let bestGuess = start;
+//   const likes: Point[] = [];
+//   const dislikes: Point[] = [];
+//   const differences: Point[] = [];
+//   return {
+//     accumulate: (prefer: Point, decline: Point, pDrawnFrom: Ball, dDrawnFrom: Ball) => {
+//       // const unnormalized = difference(prefer,decline)
+//       // const length = dot(unnormalized,unnormalized)
+//       // const unit = length>0 ? times(unnormalized, 1/length) : unnormalized; 
+//       // const weighted = times(unit,pDrawnFrom.radius)
+//       // bestGuess = mean(bestGuess,weighted)
+// //      bestGuess = plus(bestGuess,difference(prefer,decline))
+//       bestGuess=mean(bestGuess,difference(times(prefer,2),decline),9,1);
+// //      bestGuess = plus(pDrawnFrom.centroid,weighted)
+//       likes.push(prefer);
+//       dislikes.push(decline);
+//       differences.push(mean(pDrawnFrom.centroid, dDrawnFrom.centroid));
+//       // bestGuess = mean(bestGuess, x, 1, 2)  // average the new location with the decayed old location
+//     },
+//     convergence: () => bestGuess,
+//     history: () => likes
+//   }
+// }
+export const getHalfspace = (prefer: Point, decline: Point): Hyperplane => {
+  const v = difference(prefer,decline);
+  const l = Math.sqrt(dot(v,v))
+  const n = times(v,1/l)
+  const a = mean(prefer,decline,2,3)
+  const d = dot(a,n)
+  return { normal: n, offset: d } 
+}
+
+export const accumulator = (tree: TreeLike<Ball>) => {
+  const t = tree;
+  let intersect = t;
   const likes: Point[] = [];
   const dislikes: Point[] = [];
-  const differences: Point[] = [];
   return {
-    accumulate: (prefer: Point, decline: Point, pDrawnFrom: Ball, dDrawnFrom: Ball) => {
-      // const unnormalized = difference(prefer,decline)
-      // const length = dot(unnormalized,unnormalized)
-      // const unit = length>0 ? times(unnormalized, 1/length) : unnormalized; 
-      // const weighted = times(unit,pDrawnFrom.radius)
-      // bestGuess = mean(bestGuess,weighted)
-//      bestGuess = plus(bestGuess,difference(prefer,decline))
-      bestGuess=mean(bestGuess,difference(times(prefer,2),decline),9,1);
-//      bestGuess = plus(pDrawnFrom.centroid,weighted)
+    accumulate: (prefer: Point, decline: Point) => {
       likes.push(prefer);
       dislikes.push(decline);
-      differences.push(mean(pDrawnFrom.centroid, dDrawnFrom.centroid));
+      // const ab = difference(prefer,decline)
+      // const length = Math.sqrt(dot(ab,ab))
+      // const radius = intersect[1].radius
+//      const radius = t[1].radius
+//      const center = plus(mean(prefer, decline),times(ab,128*radius/length))
+//      const center = plus(mean(prefer, decline, 1, 2),times(ab,radius/length))
+//      const center = plus(mean(prefer, decline),times(ab,radius/length))
+//      console.log(distance(center,intersect[1].center), radius)
+//      const ball = {center,radius: 128*radius,centroid:center,weight:0}
+      const h = getHalfspace(prefer,decline)
+      intersect = pruneHalfspace(intersect,h)
       // bestGuess = mean(bestGuess, x, 1, 2)  // average the new location with the decayed old location
     },
-    convergence: () => bestGuess,
+    convergence: () => intersect ,
     history: () => likes
   }
-}
-export const accumulate = (a: {v: number[], path: number[], w: number}, p: Point, b: number) => {
 }
 
 // old
@@ -355,6 +388,24 @@ export const accumulate = (a: {v: number[], path: number[], w: number}, p: Point
 const ballsIntersect = (b1: Ball, b2: Ball): boolean => {
   return distance(b1.center,b2.center) <= b1.radius + b2.radius
 } 
+export const bisectPoints = (p1: Point, p2: Point): Hyperplane => {
+  const v = difference(p1,p2);
+  const l = Math.sqrt(dot(v,v))
+  const n = times(v,1/l)
+  const a = mean(p1,p2)
+  const d = dot(a,n)
+  return { normal: n, offset: d } 
+}
+
+/*
+Returns true if the ball intersects the halfspace represented by all points
+greater than the hyperplane specified. For intersections of the other halfspace
+simply use the negative form of the hyperplane -- negative offsets will always
+include the origin, positive offsets always exclude the origin.
+*/
+export const intersectsHalfspace = (b: Ball, h: Hyperplane): boolean => {
+  return dot(b.center,h.normal) > h.offset-b.radius;
+}
 export const intersectingBranches = (t: TreeLike<Ball>, branch: number, ball: Ball): number[] => {
   if(!t[branch] || !ballsIntersect(t[branch],ball)) { return [] }
   const lb = branch * 2;
@@ -362,6 +413,115 @@ export const intersectingBranches = (t: TreeLike<Ball>, branch: number, ball: Ba
   const branches = intersectingBranches(t,lb,ball).concat(intersectingBranches(t,rb,ball))
   return branches.length > 0 ? branches : [branch]
 }
+/* 
+TODO: Note, using intersections kind of implies that we are moving away from
+caring about directly addressable branches (at least in the case where we're)
+collapsing them. We could probably make this more efficient by simply dropping 
+our indexed tree approach and going back to a basic linked list style node tree. 
+In that case rather than cloning and rebuilding the deep object tree, for
+situations where we don't need to collapse the branch we can just return the
+original. (as long as we treat the branches as read only)
+*/
+const pruneBranch = (ball: Ball, source: TreeLike<Ball>, target: TreeLike<Ball>, sourceBranch: number, targetBranch: number): Ball => {
+  /* 
+  If we're here this is either a leaf node, or at least one of the 
+  subbranches has to intersect.  If one subbranches doesn't, we want to 
+  collapse the one that does.
+  */
+
+  if(source[sourceBranch].weight===1) {
+    // this is a leaf node, add it to the target tree
+    target[targetBranch]={...source[sourceBranch]}
+    return target[targetBranch];
+  }
+
+  // not a leaf node, check if we need to collapse it  
+  const lb = sourceBranch * 2;
+  const rb = lb + 1;
+  const left = ballsIntersect(ball, source[lb])
+  const right = ballsIntersect(ball, source[rb])
+ 
+  if(!right) {
+    // collapse left
+    pruneBranch(ball, source, target, lb, targetBranch)
+    return target[targetBranch];
+  }
+  if(!left) {
+    // collapse right
+    pruneBranch(ball, source, target, rb, targetBranch)
+    return target[targetBranch];
+  }
+  // prune both branches and calculate new centroid
+  const leftBall = pruneBranch(ball, source, target, lb, targetBranch*2)
+  const rightBall = pruneBranch(ball, source, target, rb, targetBranch*2+1)
+  target[targetBranch] = containerBall(leftBall,rightBall)
+  return target[targetBranch]
+}
+
+export const intersection = (t: TreeLike<Ball>, ball: Ball): TreeLike<Ball> => {
+  const pruned: TreeLike<Ball> = {}
+  pruneBranch(ball, t, pruned, 1, 1)
+  return pruned;
+}
+
+const pruneHalfspaceR = (h: Hyperplane, source: TreeLike<Ball>, target: TreeLike<Ball>, sourceBranch: number, targetBranch: number): Ball => {
+  /* 
+  If we're here this is either a leaf node, or at least one of the 
+  subbranches has to intersect.  If one subbranches doesn't, we want to 
+  collapse the one that does.
+  */
+
+  if(source[sourceBranch].weight===1) {
+    // this is a leaf node, add it to the target tree
+    target[targetBranch]={...source[sourceBranch]}
+    return target[targetBranch];
+  }
+
+  // not a leaf node, check if we need to collapse it  
+  const lb = sourceBranch * 2;
+  const rb = lb + 1;
+  const left = intersectsHalfspace(source[lb], h)
+  const right = intersectsHalfspace(source[rb], h)
+ 
+  if(!right) {
+    // collapse left
+    pruneHalfspaceR(h, source, target, lb, targetBranch)
+    return target[targetBranch];
+  }
+  if(!left) {
+    // collapse right
+    pruneHalfspaceR(h, source, target, rb, targetBranch)
+    return target[targetBranch];
+  }
+  // prune both branches and calculate new centroid
+  const leftBall = pruneHalfspaceR(h, source, target, lb, targetBranch*2)
+  const rightBall = pruneHalfspaceR(h, source, target, rb, targetBranch*2+1)
+  target[targetBranch] = containerBall(leftBall,rightBall)
+  return target[targetBranch]
+}
+
+export const pruneHalfspace = (t: TreeLike<Ball>, h: Hyperplane): TreeLike<Ball> => {
+  const pruned: TreeLike<Ball> = {}
+  pruneHalfspaceR(h, t, pruned, 1, 1)
+  return pruned;
+}
+
+export const randomLeaf = (t: TreeLike<Ball>, b?: number): LeafNode => {
+  let branch = b ? b : 1;
+  let weight = t[branch].weight;
+  while(weight>1) {
+      branch=branch*2;
+      const lb = t[branch];
+      if(Math.random()>lb.weight/weight) { 
+          branch+=1;
+      }
+      weight = t[branch].weight;
+  }
+  return t[branch] as LeafNode
+  
+}
+
+
 interface Candidate {
   branch: number;
   distance: number;

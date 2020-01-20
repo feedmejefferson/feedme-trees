@@ -1,4 +1,4 @@
-import { calculateCentroids, distance, knn, knc } from "./tree-utils";
+import { calculateCentroids, distance, knn, knc, intersection as intersect } from "./tree-utils";
 import { Ball, Point, TreeLike, LeafNode } from "./types";
 
 
@@ -91,5 +91,8 @@ export class BallTree {
     }
     public nc = (p: Point, m: number): number => {
         return knc(this.nodes, 1, p, 1, m)[0];
+    }
+    public intersection = (ball: Ball): TreeLike<Ball> => {
+        return intersect(this.nodes, ball)
     }
 }
